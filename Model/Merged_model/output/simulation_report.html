@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-store">
+    <title>Vietnam Merged Model — Simulation Report</title>
+
+    <style>
+        :root {
+            --page-background: #f4f7fb;
+            --card-background: #ffffff;
+            --text: #18212f;
+            --muted-text: #5c6878;
+            --border: #d9e0e8;
+            --header-background: #1f4e79;
+            --group-background: #dce8f4;
+            --group-text: #163b5c;
+            --hover-background: #f5f9fd;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: var(--page-background);
+            color: var(--text);
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        main {
+            width: min(1800px, 100%);
+            margin: 0 auto;
+            padding: 36px 28px 56px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 30px;
+        }
+
+        .metadata {
+            margin: 10px 0 30px;
+            color: var(--muted-text);
+        }
+
+        .report-section {
+            margin-top: 28px;
+            padding: 22px;
+            background: var(--card-background);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+
+        h2 {
+            margin: 0 0 16px;
+            font-size: 21px;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            border: 1px solid var(--border);
+            border-radius: 7px;
+        }
+
+        table {
+            width: 100%;
+            min-width: 1050px;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        thead th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background: var(--header-background);
+            color: white;
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        th,
+        td {
+            padding: 10px 13px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        tbody td {
+            text-align: right;
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .variable-column {
+            min-width: 280px;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        tbody th.variable-column {
+            font-weight: 500;
+        }
+
+        tbody tr:not(.group-row):hover {
+            background: var(--hover-background);
+        }
+
+        .group-row th {
+            background: var(--group-background);
+            color: var(--group-text);
+            text-align: left;
+            font-weight: 700;
+        }
+
+        footer {
+            margin-top: 26px;
+            color: var(--muted-text);
+            font-size: 13px;
+        }
+    </style>
+</head>
+
+<body>
+    <main>
+<h1>Vietnam Merged Model — Simulation Report</h1>
+<p class="metadata">
+    Base year: 2024
+    &nbsp;|&nbsp;
+    Projection horizon: 2025–2029
+</p>
+
+<section class="report-section">
+<h2>Variable Values after Simulation — Exogenous</h2>
+<div class="table-container">
+<table>
+<thead><tr>
+<th class="variable-column">Variable</th>
+<th>2024</th>
+<th>2025</th>
+<th>2026</th>
+<th>2027</th>
+<th>2028</th>
+<th>2029</th>
+</tr></thead>
+<tbody>
+<tr class="group-row"><th colspan="7">Prices</th></tr>
+<tr>
+<th scope="row" class="variable-column">E</th>
+<td>24,16</td>
+<td>24,40</td>
+<td>24,63</td>
+<td>24,86</td>
+<td>25,10</td>
+<td>25,34</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">PD</th>
+<td>1,00</td>
+<td>1,03</td>
+<td>1,06</td>
+<td>1,09</td>
+<td>1,13</td>
+<td>1,16</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">XPI</th>
+<td>1,00</td>
+<td>1,02</td>
+<td>1,04</td>
+<td>1,06</td>
+<td>1,09</td>
+<td>1,11</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">MPI</th>
+<td>1,00</td>
+<td>1,02</td>
+<td>1,04</td>
+<td>1,06</td>
+<td>1,09</td>
+<td>1,11</td>
+</tr>
+<tr class="group-row"><th colspan="7">Quantities</th></tr>
+<tr>
+<th scope="row" class="variable-column">AGDP (bn VND, const.)</th>
+<td>1.321.957,77</td>
+<td>1.428.988,40</td>
+<td>1.544.684,63</td>
+<td>1.669.748,06</td>
+<td>1.804.937,10</td>
+<td>1.951.071,54</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">IGDP (bn VND, const.)</th>
+<td>4.598.742,28</td>
+<td>5.057.775,75</td>
+<td>5.562.628,65</td>
+<td>6.117.874,54</td>
+<td>6.728.543,50</td>
+<td>7.400.167,72</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">SGDP (bn VND, const.)</th>
+<td>5.589.628,86</td>
+<td>6.160.845,31</td>
+<td>6.790.435,62</td>
+<td>7.484.365,15</td>
+<td>8.249.208,86</td>
+<td>9.092.213,64</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">AX (mn USD)</th>
+<td>18.395,28</td>
+<td>19.751,55</td>
+<td>21.207,82</td>
+<td>22.771,46</td>
+<td>24.450,38</td>
+<td>26.253,10</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">IX (mn USD)</th>
+<td>386.390,28</td>
+<td>420.812,09</td>
+<td>458.300,37</td>
+<td>499.128,33</td>
+<td>543.593,46</td>
+<td>592.019,80</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">SX (mn USD)</th>
+<td>26.614,44</td>
+<td>29.465,70</td>
+<td>32.622,43</td>
+<td>36.117,34</td>
+<td>39.986,66</td>
+<td>44.270,52</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">GT (bn VND, current)</th>
+<td>398.192,60</td>
+<td>410.269,47</td>
+<td>422.712,63</td>
+<td>435.533,18</td>
+<td>448.742,56</td>
+<td>462.352,58</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">TG (bn VND, current)</th>
+<td>2.026.112,00</td>
+<td>2.127.417,60</td>
+<td>2.233.788,48</td>
+<td>2.345.477,90</td>
+<td>2.462.751,80</td>
+<td>2.585.889,39</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">IVG (bn VND, const.)</th>
+<td>681.164,48</td>
+<td>715.222,70</td>
+<td>750.983,84</td>
+<td>788.533,03</td>
+<td>827.959,68</td>
+<td>869.357,67</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">NTRG (mn USD)</th>
+<td>900,00</td>
+<td>900,00</td>
+<td>900,00</td>
+<td>900,00</td>
+<td>900,00</td>
+<td>900,00</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">NTRP (mn USD)</th>
+<td>12.200,00</td>
+<td>12.200,00</td>
+<td>12.200,00</td>
+<td>12.200,00</td>
+<td>12.200,00</td>
+<td>12.200,00</td>
+</tr>
+<tr class="group-row"><th colspan="7">Financial</th></tr>
+<tr>
+<th scope="row" class="variable-column">NDDG (bn VND)</th>
+<td>2.441.954,06</td>
+<td>2.564.051,76</td>
+<td>2.692.254,35</td>
+<td>2.826.867,06</td>
+<td>2.968.210,42</td>
+<td>3.116.620,94</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">IRDG (rate)</th>
+<td>—</td>
+<td>0,04</td>
+<td>0,04</td>
+<td>0,04</td>
+<td>0,04</td>
+<td>0,04</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">IRFG (rate)</th>
+<td>—</td>
+<td>0,02</td>
+<td>0,02</td>
+<td>0,02</td>
+<td>0,02</td>
+<td>0,02</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">IRFP (rate)</th>
+<td>—</td>
+<td>0,03</td>
+<td>0,03</td>
+<td>0,03</td>
+<td>0,03</td>
+<td>0,03</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">FDI (mn USD)</th>
+<td>20.200,00</td>
+<td>21.210,00</td>
+<td>22.270,50</td>
+<td>23.384,03</td>
+<td>24.553,23</td>
+<td>25.780,89</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">NFP (mn USD)</th>
+<td>-10.900,69</td>
+<td>-11.445,72</td>
+<td>-12.018,01</td>
+<td>-12.618,91</td>
+<td>-13.249,86</td>
+<td>-13.912,35</td>
+</tr>
+</tbody></table>
+</div></section>
+<section class="report-section">
+<h2>Variable Values after Simulation — Endogenous</h2>
+<div class="table-container">
+<table>
+<thead><tr>
+<th class="variable-column">Variable</th>
+<th>2024</th>
+<th>2025</th>
+<th>2026</th>
+<th>2027</th>
+<th>2028</th>
+<th>2029</th>
+</tr></thead>
+<tbody>
+<tr>
+<th scope="row" class="variable-column">P</th>
+<td>1,00</td>
+<td>1,03</td>
+<td>1,06</td>
+<td>1,09</td>
+<td>1,13</td>
+<td>1,16</td>
+</tr>
+<tr class="group-row"><th colspan="7">Quantities</th></tr>
+<tr>
+<th scope="row" class="variable-column">GDP (bn VND, const.)</th>
+<td>11.510.328,90</td>
+<td>12.647.609,46</td>
+<td>13.897.748,90</td>
+<td>15.271.987,75</td>
+<td>16.782.689,46</td>
+<td>18.443.452,90</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">GDPN (bn VND, current)</th>
+<td>11.510.328,90</td>
+<td>13.031.201,70</td>
+<td>14.753.548,93</td>
+<td>16.704.121,02</td>
+<td>18.913.227,21</td>
+<td>21.415.209,74</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">CP (bn VND, const.)</th>
+<td>6.164.612,30</td>
+<td>6.866.261,61</td>
+<td>7.633.410,06</td>
+<td>8.472.775,07</td>
+<td>9.390.895,71</td>
+<td>10.394.887,31</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">CG (bn VND, const.)</th>
+<td>1.017.783,40</td>
+<td>612.362,82</td>
+<td>914.066,90</td>
+<td>1.286.098,35</td>
+<td>1.740.217,24</td>
+<td>2.289.904,23</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">C (bn VND, const.)</th>
+<td>7.182.395,70</td>
+<td>7.478.624,43</td>
+<td>8.547.476,96</td>
+<td>9.758.873,42</td>
+<td>11.131.112,95</td>
+<td>12.684.791,54</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">IVP (bn VND, const.)</th>
+<td>2.841.194,60</td>
+<td>3.872.607,37</td>
+<td>4.291.371,87</td>
+<td>4.753.555,71</td>
+<td>5.263.580,57</td>
+<td>5.826.315,01</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">IV (bn VND, const.)</th>
+<td>3.522.359,08</td>
+<td>4.587.830,07</td>
+<td>5.042.355,71</td>
+<td>5.542.088,74</td>
+<td>6.091.540,25</td>
+<td>6.695.672,68</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">X (mn USD)</th>
+<td>431.400,00</td>
+<td>470.029,34</td>
+<td>512.130,62</td>
+<td>558.017,12</td>
+<td>608.030,51</td>
+<td>662.543,42</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">M (mn USD)</th>
+<td>398.300,00</td>
+<td>445.979,77</td>
+<td>499.388,32</td>
+<td>559.216,15</td>
+<td>626.237,25</td>
+<td>701.319,16</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">GDY (bn VND, current)</th>
+<td>9.901.440,40</td>
+<td>11.362.894,53</td>
+<td>13.015.571,51</td>
+<td>14.884.914,60</td>
+<td>16.998.230,26</td>
+<td>19.386.191,39</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">GDS (bn VND, current)</th>
+<td>4.265.104,50</td>
+<td>5.284.856,29</td>
+<td>5.656.466,15</td>
+<td>6.017.363,71</td>
+<td>6.356.911,87</td>
+<td>6.661.685,99</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">RESBAL (mn USD)</th>
+<td>33.100,00</td>
+<td>24.545,16</td>
+<td>13.272,88</td>
+<td>-1.274,69</td>
+<td>-19.754,53</td>
+<td>-42.939,14</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">NETFSY (mn USD)</th>
+<td>-15.700,00</td>
+<td>-14.776,57</td>
+<td>-14.044,74</td>
+<td>-13.612,58</td>
+<td>-13.583,05</td>
+<td>-14.081,02</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">CURBAL (mn USD)</th>
+<td>30.500,00</td>
+<td>22.868,59</td>
+<td>12.328,14</td>
+<td>-1.787,28</td>
+<td>-20.237,58</td>
+<td>-43.920,15</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">BRG (bn VND)</th>
+<td>152.888,08</td>
+<td>-259.556,93</td>
+<td>52.870,90</td>
+<td>462.717,73</td>
+<td>991.330,22</td>
+<td>1.664.146,13</td>
+</tr>
+<tr class="group-row"><th colspan="7">Financial</th></tr>
+<tr>
+<th scope="row" class="variable-column">DCP (bn VND)</th>
+<td>15.030.000,00</td>
+<td>17.844.973,95</td>
+<td>20.677.601,73</td>
+<td>23.473.637,50</td>
+<td>26.163.184,83</td>
+<td>28.657.360,49</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">DCG (bn VND)</th>
+<td>134.000,00</td>
+<td>-363.745,81</td>
+<td>-569.432,83</td>
+<td>-387.703,80</td>
+<td>297.913,11</td>
+<td>1.629.067,86</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">DC (bn VND)</th>
+<td>15.164.000,00</td>
+<td>17.481.228,14</td>
+<td>20.108.168,90</td>
+<td>23.085.933,70</td>
+<td>26.461.097,94</td>
+<td>30.286.428,35</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">INDG (bn VND)</th>
+<td>83.721,02</td>
+<td>94.500,35</td>
+<td>99.225,36</td>
+<td>104.186,63</td>
+<td>109.395,96</td>
+<td>114.865,76</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">INFG (mn USD)</th>
+<td>822,97</td>
+<td>704,91</td>
+<td>783,85</td>
+<td>871,66</td>
+<td>969,34</td>
+<td>1.077,98</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">INFP (mn USD)</th>
+<td>3.976,34</td>
+<td>2.625,94</td>
+<td>1.242,88</td>
+<td>122,01</td>
+<td>-636,15</td>
+<td>-909,31</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">MD (bn VND)</th>
+<td>17.915.000,00</td>
+<td>20.282.129,25</td>
+<td>22.962.838,97</td>
+<td>25.998.764,31</td>
+<td>29.437.079,37</td>
+<td>33.331.235,44</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">MS (bn VND)</th>
+<td>17.915.000,00</td>
+<td>20.282.129,25</td>
+<td>22.962.838,97</td>
+<td>25.998.764,31</td>
+<td>29.437.079,37</td>
+<td>33.331.235,44</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">NFDG (mn USD)</th>
+<td>42.490,53</td>
+<td>47.249,33</td>
+<td>52.542,42</td>
+<td>58.429,95</td>
+<td>64.978,84</td>
+<td>72.263,60</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">NFDP (mn USD)</th>
+<td>90.880,35</td>
+<td>43.014,30</td>
+<td>4.222,50</td>
+<td>-22.016,19</td>
+<td>-31.470,15</td>
+<td>-19.018,14</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">R (mn USD)</th>
+<td>113.842,87</td>
+<td>114.814,21</td>
+<td>115.914,14</td>
+<td>117.159,73</td>
+<td>118.570,31</td>
+<td>120.167,81</td>
+</tr>
+</tbody></table>
+</div></section>
+<section class="report-section">
+<h2>Checking % Change — Endogenous Variables</h2>
+<div class="table-container">
+<table>
+<thead><tr>
+<th class="variable-column">Variable</th>
+<th>2024</th>
+<th>2025</th>
+<th>2026</th>
+<th>2027</th>
+<th>2028</th>
+<th>2029</th>
+</tr></thead>
+<tbody>
+<tr class="group-row"><th colspan="7">Quantities</th></tr>
+<tr>
+<th scope="row" class="variable-column">GDP (bn VND, const.)</th>
+<td>—</td>
+<td>9.9%</td>
+<td>9.9%</td>
+<td>9.9%</td>
+<td>9.9%</td>
+<td>9.9%</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">GDPN (bn VND, current)</th>
+<td>—</td>
+<td>13.2%</td>
+<td>13.2%</td>
+<td>13.2%</td>
+<td>13.2%</td>
+<td>13.2%</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">CP (bn VND, const.)</th>
+<td>—</td>
+<td>11.4%</td>
+<td>11.2%</td>
+<td>11.0%</td>
+<td>10.8%</td>
+<td>10.7%</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">CG (bn VND, const.)</th>
+<td>—</td>
+<td>-39.8%</td>
+<td>49.3%</td>
+<td>40.7%</td>
+<td>35.3%</td>
+<td>31.6%</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">C (bn VND, const.)</th>
+<td>—</td>
+<td>4.1%</td>
+<td>14.3%</td>
+<td>14.2%</td>
+<td>14.1%</td>
+<td>14.0%</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">IVP (bn VND, const.)</th>
+<td>—</td>
+<td>36.3%</td>
+<td>10.8%</td>
+<td>10.8%</td>
+<td>10.7%</td>
+<td>10.7%</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">IV (bn VND, const.)</th>
+<td>—</td>
+<td>30.2%</td>
+<td>9.9%</td>
+<td>9.9%</td>
+<td>9.9%</td>
+<td>9.9%</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">X (mn USD)</th>
+<td>—</td>
+<td>9.0%</td>
+<td>9.0%</td>
+<td>9.0%</td>
+<td>9.0%</td>
+<td>9.0%</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">M (mn USD)</th>
+<td>—</td>
+<td>12.0%</td>
+<td>12.0%</td>
+<td>12.0%</td>
+<td>12.0%</td>
+<td>12.0%</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">GDY (bn VND, current)</th>
+<td>—</td>
+<td>14.8%</td>
+<td>14.5%</td>
+<td>14.4%</td>
+<td>14.2%</td>
+<td>14.0%</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">GDS (bn VND, current)</th>
+<td>—</td>
+<td>23.9%</td>
+<td>7.0%</td>
+<td>6.4%</td>
+<td>5.6%</td>
+<td>4.8%</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">RESBAL (mn USD)</th>
+<td>—</td>
+<td>-25.8%</td>
+<td>-45.9%</td>
+<td>-109.6%</td>
+<td>1449.7%</td>
+<td>117.4%</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">NETFSY (mn USD)</th>
+<td>—</td>
+<td>-5.9%</td>
+<td>-5.0%</td>
+<td>-3.1%</td>
+<td>-0.2%</td>
+<td>3.7%</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">CURBAL (mn USD)</th>
+<td>—</td>
+<td>-25.0%</td>
+<td>-46.1%</td>
+<td>-114.5%</td>
+<td>1032.3%</td>
+<td>117.0%</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">BRG (bn VND)</th>
+<td>—</td>
+<td>-269.8%</td>
+<td>-120.4%</td>
+<td>775.2%</td>
+<td>114.2%</td>
+<td>67.9%</td>
+</tr>
+<tr class="group-row"><th colspan="7">Financial</th></tr>
+<tr>
+<th scope="row" class="variable-column">DCP (bn VND)</th>
+<td>—</td>
+<td>18.7%</td>
+<td>15.9%</td>
+<td>13.5%</td>
+<td>11.5%</td>
+<td>9.5%</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">DCG (bn VND)</th>
+<td>—</td>
+<td>-371.5%</td>
+<td>56.5%</td>
+<td>-31.9%</td>
+<td>-176.8%</td>
+<td>446.8%</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">DC (bn VND)</th>
+<td>—</td>
+<td>15.3%</td>
+<td>15.0%</td>
+<td>14.8%</td>
+<td>14.6%</td>
+<td>14.5%</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">INDG (bn VND)</th>
+<td>—</td>
+<td>12.9%</td>
+<td>5.0%</td>
+<td>5.0%</td>
+<td>5.0%</td>
+<td>5.0%</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">INFG (mn USD)</th>
+<td>—</td>
+<td>-14.3%</td>
+<td>11.2%</td>
+<td>11.2%</td>
+<td>11.2%</td>
+<td>11.2%</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">INFP (mn USD)</th>
+<td>—</td>
+<td>-34.0%</td>
+<td>-52.7%</td>
+<td>-90.2%</td>
+<td>-621.4%</td>
+<td>42.9%</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">MD (bn VND)</th>
+<td>—</td>
+<td>13.2%</td>
+<td>13.2%</td>
+<td>13.2%</td>
+<td>13.2%</td>
+<td>13.2%</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">MS (bn VND)</th>
+<td>—</td>
+<td>13.2%</td>
+<td>13.2%</td>
+<td>13.2%</td>
+<td>13.2%</td>
+<td>13.2%</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">NFDG (mn USD)</th>
+<td>—</td>
+<td>11.2%</td>
+<td>11.2%</td>
+<td>11.2%</td>
+<td>11.2%</td>
+<td>11.2%</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">NFDP (mn USD)</th>
+<td>—</td>
+<td>-52.7%</td>
+<td>-90.2%</td>
+<td>-621.4%</td>
+<td>42.9%</td>
+<td>-39.6%</td>
+</tr>
+<tr>
+<th scope="row" class="variable-column">R (mn USD)</th>
+<td>—</td>
+<td>0.9%</td>
+<td>1.0%</td>
+<td>1.1%</td>
+<td>1.2%</td>
+<td>1.3%</td>
+</tr>
+</tbody></table>
+</div></section>
+        <footer>
+            Generated by the Vietnam Merged Model.
+        </footer>
+    </main>
+</body>
+</html>
