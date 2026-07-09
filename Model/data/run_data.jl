@@ -9,11 +9,7 @@ include(joinpath(@__DIR__, "data.jl"))
 
 println("Building model data...")
 
-model_data = build_model_data(
-    workbook;
-    base_year,
-    horizon,
-)
+model_data = build_model_data(workbook; base_year, horizon)
 
 mkpath(dirname(model_data_file))
 serialize(model_data_file, model_data)

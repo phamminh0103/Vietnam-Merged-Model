@@ -1,7 +1,3 @@
-# ==============================================================================
-# Base-year SAM construction
-# ==============================================================================
-
 const SAM_SECTORS = (:agriculture, :industry, :services)
 
 struct SAM
@@ -22,119 +18,36 @@ struct SAM
 end
 
 # ==============================================================================
-# Unit conversions
-# ==============================================================================
-
-bn_vnd_from_tn_vnd(value::Real) = 1_000 * Float64(value)
-
-# bn USD × thousand VND/USD = bn VND after multiplying by 1,000.
-bn_vnd_from_bn_usd(value::Real, exchange_rate::Real) =
-    1_000 * Float64(value) * Float64(exchange_rate)
-
-# mn USD × thousand VND/USD = bn VND.
-bn_vnd_from_mn_usd(value::Real, exchange_rate::Real) =
-    Float64(value) * Float64(exchange_rate)
-
-percent_to_share(value::Real) = Float64(value) / 100
-
-# ==============================================================================
-# Assumption helpers
-# ==============================================================================
-
-function assumed_domestic_public_debt_share(
-    assumptions,
-    year::Int,
-)
-    shares = assumptions.domestic_share_of_public_debt
-
-    haskey(shares, year) || error(
-        "Missing domestic share of public debt assumption for $year.",
-    )
-
-    value = Float64(shares[year])
-
-    isfinite(value) || error(
-        "Domestic share of public debt for $year is not finite: $value",
-    )
-
-    0.0 <= value <= 1.0 || error(
-        "Domestic share of public debt for $year must lie between 0 and 1, " *
-        "but is $value.",
-    )
-
-    return value
-end
-
-# ==============================================================================
 # Matrix helpers
 # ==============================================================================
 
-function account_indices(accounts::Vector{Symbol})
-    return Dict(account => index for (index, account) in enumerate(accounts))
-end
+account_indices(accounts) =
+    Dict(account => index for (index, account) in enumerate(accounts))
 
-function post!(
-    matrix::Matrix{Float64},
-    indices::Dict{Symbol, Int},
-    receiver::Symbol,
-    payer::Symbol,
-    value::Real,
-)
-    matrix[indices[receiver], indices[payer]] += Float64(value)
-
+function post!(matrix, indices, receiver::Symbol, payer::Symbol, value)
+    matrix[indices[receiver], indices[payer]] += value
     return nothing
 end
 
-function sam_differences(
-    matrix::Matrix{Float64},
-    accounts::Vector{Symbol},
-)
-    return Dict(
-        account => sum(matrix[index, :]) - sum(matrix[:, index])
-        for (index, account) in enumerate(accounts)
-    )
-end
-
 """
-Balance a SAM with transparent entries posted to `balancing_account`.
-
-For the legacy Vietnam financial SAM, this is used only to post the small
-remaining GFIN/PFIN discrepancy. It is recorded in `balancing_entries`.
+Balance a SAM by posting each account's row/column difference against
+`balancing_account`. Returns the adjustments, which are recorded in the
+SAM's `balancing_entries` so nothing is hidden.
 """
-function balance_sam!(
-    matrix::Matrix{Float64},
-    accounts::Vector{Symbol};
-    balancing_account::Symbol,
-    atol::Real = 1e-8,
-)
+function balance_sam!(matrix, accounts; balancing_account::Symbol, atol = 1e-8)
     indices = account_indices(accounts)
     adjustments = Dict{Symbol, Float64}()
 
     for account in accounts
         account == balancing_account && continue
 
-        difference =
-            sum(matrix[indices[account], :]) -
-            sum(matrix[:, indices[account]])
-
+        difference = sum(matrix[indices[account], :]) - sum(matrix[:, indices[account]])
         abs(difference) <= atol && continue
 
         if difference > 0
-            post!(
-                matrix,
-                indices,
-                balancing_account,
-                account,
-                difference,
-            )
+            post!(matrix, indices, balancing_account, account, difference)
         else
-            post!(
-                matrix,
-                indices,
-                account,
-                balancing_account,
-                -difference,
-            )
+            post!(matrix, indices, account, balancing_account, -difference)
         end
 
         adjustments[account] = difference
@@ -144,817 +57,274 @@ function balance_sam!(
 end
 
 # ==============================================================================
-# Raw stock construction
+# Stocks
 # ==============================================================================
 
-function build_stock_state(
-    raw::RawInputs,
-    assumptions,
-    year::Int,
-)
-    E = observed_value(
-        raw,
-        "IMF financial data",
-        "Exchange rate, period average",
-        year,
-    )
+"""
+All observed stocks for one year (in model units), plus the derived
+government/private, domestic/foreign debt decomposition.
+"""
+function build_stock_state(obs, assumptions, year)
+    m = read_group(obs, MONETARY, year)
+    debt = read_group(obs, DEBT_RATIOS, year)
+    GDPN = read_group(obs, NATIONAL_ACCOUNTS, year).GDPN
 
-    GDPN = observed_value(
-        raw,
-        "GSO national accounts — nominal expenditure",
-        "Nominal GDP",
-        year,
-    )
+    DCP = m.credit_soe + m.credit_other + m.other_net_borrowing
 
-    M2 = bn_vnd_from_tn_vnd(observed_value(
-        raw,
-        "IMF financial data",
-        "Broad money / M2",
-        year,
-    ))
+    share = assumptions.domestic_share_of_public_debt[year]
+    public_debt = debt.public_debt_ratio * GDPN
+    domestic_public_debt = share * public_debt
 
-    NFA = bn_vnd_from_tn_vnd(observed_value(
-        raw,
-        "IMF financial data",
-        "Net foreign assets",
-        year,
-    ))
-
-    DCG = bn_vnd_from_tn_vnd(observed_value(
-        raw,
-        "IMF financial data",
-        "Credit to government",
-        year,
-    ))
-
-    credit_state_enterprises = bn_vnd_from_tn_vnd(observed_value(
-        raw,
-        "IMF financial data",
-        "Credit to state enterprises",
-        year,
-    ))
-
-    credit_others = bn_vnd_from_tn_vnd(observed_value(
-        raw,
-        "IMF financial data",
-        "Credit to others",
-        year,
-    ))
-
-    other_net_borrowing = bn_vnd_from_tn_vnd(observed_value(
-        raw,
-        "IMF financial data",
-        "Other net borrowing",
-        year,
-    ))
-
-    DCP =
-        credit_state_enterprises +
-        credit_others +
-        other_net_borrowing
-
-    DC = DCG + DCP
-
-    public_debt_ratio = percent_to_share(observed_value(
-        raw,
-        "Debt data",
-        "Public debt stock",
-        year,
-    ))
-
-    external_debt_ratio = percent_to_share(observed_value(
-        raw,
-        "Debt data",
-        "Total external debt",
-        year,
-    ))
-
-    domestic_public_debt_share =
-        assumed_domestic_public_debt_share(
-            assumptions,
-            year,
-        )
-
-    public_debt = public_debt_ratio * GDPN
-    domestic_public_debt = domestic_public_debt_share * public_debt
-
-    NDDG = domestic_public_debt - DCG
-    NFDG = (public_debt - domestic_public_debt) / E
-    NFDP = external_debt_ratio * GDPN / E - NFDG
+    NDDG = domestic_public_debt - m.DCG
+    NFDG = (public_debt - domestic_public_debt) / m.E
+    NFDP = debt.external_debt_ratio * GDPN / m.E - NFDG
 
     return Dict{Symbol, Float64}(
-        :E => E,
+        pairs(m)...,
+        pairs(debt)...,
+
         :GDPN => GDPN,
+        :MD => m.M2,
+        :MS => m.M2,
+        :R => m.NFA / m.E,
 
-        :M2 => M2,
-        :MD => M2,
-        :MS => M2,
-
-        :NFA => NFA,
-        :R => NFA / E,
-
-        :DCG => DCG,
         :DCP => DCP,
-        :DC => DC,
+        :DC => m.DCG + DCP,
 
         :NDDG => NDDG,
         :NFDG => NFDG,
         :NFDP => NFDP,
 
         :public_debt => public_debt,
-        :total_external_debt => external_debt_ratio * GDPN,
+        :total_external_debt => debt.external_debt_ratio * GDPN,
     )
 end
 
 # ==============================================================================
-# Sectoral export composition
+# Flows
 # ==============================================================================
 
-function observed_sector_exports(
-    raw::RawInputs,
-    year::Int,
-)
-    group = "GSO trade — goods exports by activity"
-
-    agriculture = observed_value(
-        raw,
-        group,
-        "Goods exports — Agriculture, Forestry and Fishing",
-        year,
-    )
-
-    industry = sum((
-        observed_value(
-            raw,
-            group,
-            "Goods exports — Mining and quarrying",
-            year,
-        ),
-        observed_value(
-            raw,
-            group,
-            "Goods exports — Manufacturing",
-            year,
-        ),
-        observed_value(
-            raw,
-            group,
-            "Goods exports — Electricity, gas, steam and air conditioning supply",
-            year,
-        ),
-        observed_value(
-            raw,
-            group,
-            "Goods exports — Water supply, sewerage, waste management and remediation activities",
-            year,
-        ),
-        observed_value(
-            raw,
-            group,
-            "Goods exports — Other commodities, n.e.s",
-            year,
-        ),
-    ))
-
-    services = sum((
-        observed_value(
-            raw,
-            group,
-            "Goods exports — Transportation and storage",
-            year,
-        ),
-        observed_value(
-            raw,
-            group,
-            "Goods exports — Information and communication",
-            year,
-        ),
-        observed_value(
-            raw,
-            group,
-            "Goods exports — Professional, scientific and technical activities",
-            year,
-        ),
-        observed_value(
-            raw,
-            group,
-            "Goods exports — Arts, entertainment and recreation",
-            year,
-        ),
-        observed_value(
-            raw,
-            "GSO trade — services exports",
-            "Services exports, balance-of-payments basis",
-            year,
-        ),
-    ))
-
-    return Dict(
-        :agriculture => agriculture,
-        :industry => industry,
-        :services => services,
-    )
-end
-
-function aggregate_external_trade(
-    raw::RawInputs,
-    year::Int,
-)
-    goods_exports = observed_value(
-        raw,
-        "IMF external accounts — goods trade",
-        "Goods exports",
-        year,
-    )
-
-    service_exports = observed_value(
-        raw,
-        "IMF external accounts — non-factor services",
-        "Non-factor services exports",
-        year,
-    )
-
-    goods_imports = observed_value(
-        raw,
-        "IMF external accounts — goods trade",
-        "Goods imports",
-        year,
-    )
-
-    service_imports = observed_value(
-        raw,
-        "IMF external accounts — non-factor services",
-        "Non-factor services imports",
-        year,
-    )
-
-    return (
-        exports_bn_usd = goods_exports + service_exports,
-        imports_bn_usd = goods_imports + service_imports,
-    )
-end
-
-# ==============================================================================
-# SAM builder
-# ==============================================================================
-
-function build_sam(
-    raw::RawInputs,
-    assumptions;
-    year::Int,
-)
-    lag_year = year - 1
-
-    stocks = build_stock_state(
-        raw,
-        assumptions,
-        year,
-    )
-
-    observed_lag = build_stock_state(
-        raw,
-        assumptions,
-        lag_year,
-    )
-
-    E = stocks[:E]
-    E_lag = observed_lag[:E]
-
-    # --------------------------------------------------------------------------
-    # National accounts
-    # --------------------------------------------------------------------------
-
+function sam_flows(obs, assumptions, stocks, lag, year)
+    E, E_lag = stocks[:E], lag[:E]
     GDP = stocks[:GDPN]
+    IMF_GDP = stocks[:IMF_GDP]
 
-    CP = observed_value(
-        raw,
-        "GSO national accounts — nominal expenditure",
-        "Household consumption",
-        year,
-    )
+    na = read_group(obs, NATIONAL_ACCOUNTS, year)
+    ext = read_group(obs, EXTERNAL_FLOWS, year)
+    fis = read_group(obs, FISCAL_RATIOS, year)
+    int = read_group(obs, INTEREST_DETAIL, year)
 
-    CG = observed_value(
-        raw,
-        "GSO national accounts — nominal expenditure",
-        "Public consumption",
-        year,
-    )
+    # External account ---------------------------------------------------------
 
-    gross_capital_formation = observed_value(
-        raw,
-        "GSO national accounts — nominal expenditure",
-        "Gross capital formation",
-        year,
-    )
+    trade = aggregate_external_trade(obs, year)
+    X, M = trade.exports, trade.imports
+    exports_vnd, imports_vnd = E * X, E * M
 
-    GSO_trade_balance = observed_value(
-        raw,
-        "GSO national accounts — nominal expenditure",
-        "Trade balance (goods and services)",
-        year,
-    )
+    # GSO and IMF trade concepts differ; the wedge is absorbed in investment.
+    investment_reconciliation = na.trade_balance - (exports_vnd - imports_vnd)
 
-    # --------------------------------------------------------------------------
-    # External account
-    # --------------------------------------------------------------------------
+    NFP = ext.foreign_income - ext.foreign_payments + ext.foreign_interest
 
-    trade = aggregate_external_trade(raw, year)
+    # Fiscal account -----------------------------------------------------------
 
-    X = 1_000 * trade.exports_bn_usd
-    M = 1_000 * trade.imports_bn_usd
+    TG = fis.revenue_ratio * IMF_GDP
+    GT = fis.current_expenditure_ratio * IMF_GDP - na.CG
+    INDG = fis.interest_ratio * IMF_GDP - E * int.INFG
+    IVG = fis.investment_ratio * IMF_GDP + investment_reconciliation
 
-    exports_vnd = E * X
-    imports_vnd = E * M
-
-    investment_reconciliation =
-        GSO_trade_balance - (exports_vnd - imports_vnd)
-
-    NTRG = 1_000 * observed_value(
-        raw,
-        "IMF external and fiscal data",
-        "Government transfers from abroad",
-        year,
-    )
-
-    NTRP = 1_000 * observed_value(
-        raw,
-        "IMF external and fiscal data",
-        "Private transfers from abroad",
-        year,
-    )
-
-    foreign_income = observed_value(
-        raw,
-        "IMF external and fiscal data",
-        "Foreign investment income",
-        year,
-    )
-
-    foreign_payments = observed_value(
-        raw,
-        "IMF external and fiscal data",
-        "Foreign investment payments",
-        year,
-    )
-
-    foreign_interest_total = observed_value(
-        raw,
-        "IMF external and fiscal data",
-        "Foreign interest payments, total",
-        year,
-    )
-
-    NFP = 1_000 * (
-        foreign_income -
-        foreign_payments +
-        foreign_interest_total
-    )
-
-    INFG = observed_value(
-        raw,
-        "Foreign interest-payment detail",
-        "Government foreign interest payments",
-        year,
-    )
-
-    INFP = observed_value(
-        raw,
-        "Foreign interest-payment detail",
-        "Private foreign interest payments",
-        year,
-    )
-
-    FDI = 1_000 * observed_value(
-        raw,
-        "IMF external and fiscal data",
-        "Foreign direct investment",
-        year,
-    )
-
-    CURBAL = 1_000 * observed_value(
-        raw,
-        "IMF external and fiscal data",
-        "Current account balance",
-        year,
-    )
-
-    # --------------------------------------------------------------------------
-    # Fiscal account
-    # --------------------------------------------------------------------------
-
-    IMF_GDP = bn_vnd_from_tn_vnd(observed_value(
-        raw,
-        "IMF financial data",
-        "IMF nominal GDP",
-        year,
-    ))
-
-    government_revenue_ratio = percent_to_share(observed_value(
-        raw,
-        "IMF external and fiscal data",
-        "Government revenue excluding grants",
-        year,
-    ))
-
-    public_current_expenditure_ratio = percent_to_share(observed_value(
-        raw,
-        "IMF external and fiscal data",
-        "Public current expenditure excluding interest",
-        year,
-    ))
-
-    public_interest_ratio = percent_to_share(observed_value(
-        raw,
-        "IMF external and fiscal data",
-        "Public interest payments",
-        year,
-    ))
-
-    public_investment_ratio = percent_to_share(observed_value(
-        raw,
-        "IMF external and fiscal data",
-        "Public investment",
-        year,
-    ))
-
-    public_net_onlending_ratio = percent_to_share(observed_value(
-        raw,
-        "IMF external and fiscal data",
-        "Public net onlending",
-        year,
-    ))
-
-    TG = government_revenue_ratio * IMF_GDP
-
-    public_current_expenditure =
-        public_current_expenditure_ratio * IMF_GDP
-
-    GT = public_current_expenditure - CG
-
-    public_interest_payments =
-        public_interest_ratio * IMF_GDP
-
-    INDG = public_interest_payments - E * INFG
-
-    IVG =
-        public_investment_ratio * IMF_GDP +
-        investment_reconciliation
-
-    IV = gross_capital_formation + investment_reconciliation
+    IV = na.IV_total + investment_reconciliation
     IVP = IV - IVG
 
-    government_saving =
-        TG +
-        E * NTRG -
-        CG -
-        GT -
-        INDG -
-        E * INFG
+    government_saving = TG + E * ext.NTRG - na.CG - GT - INDG - E * int.INFG
+    government_capital_balance = government_saving - IVG
 
-    government_capital_balance =
-        government_saving - IVG
+    # Private sector -----------------------------------------------------------
 
-    # --------------------------------------------------------------------------
-    # Private-sector account
-    # --------------------------------------------------------------------------
-
-    private_external_income = E * (NTRP + NFP)
+    private_external_income = E * (ext.NTRP + NFP)
 
     private_saving =
-        GDP +
-        GT +
-        INDG +
-        private_external_income -
-        CP -
-        TG -
-        E * INFP
+        GDP + GT + INDG + private_external_income - na.CP - TG - E * int.INFP
 
-    # --------------------------------------------------------------------------
-    # Financial-account construction
-    # --------------------------------------------------------------------------
+    # Financial flows ------------------------------------------------------------
 
-    delta_DCG = stocks[:DCG] - observed_lag[:DCG]
-    delta_DCP = stocks[:DCP] - observed_lag[:DCP]
-    delta_MS = stocks[:MS] - observed_lag[:MS]
+    delta_DCG = stocks[:DCG] - lag[:DCG]
+    delta_DCP = stocks[:DCP] - lag[:DCP]
+    delta_MS = stocks[:MS] - lag[:MS]
 
-    bank_share = percent_to_share(observed_value(
-        raw,
-        "IMF financial data",
-        "Banking-system share of government domestic debt change",
-        year,
-    ))
-
-    government_domestic_debt_change = bn_vnd_from_tn_vnd(observed_value(
-        raw,
-        "IMF financial data",
-        "Government net domestic debt change",
-        year,
-    ))
-
-    banking_system_financing =
-        bank_share * government_domestic_debt_change
-
-    nonbank_public_financing =
-        government_domestic_debt_change -
-        banking_system_financing
-
-    ODA_share =
-        Float64(
-            assumptions.oda_financed_share_of_public_net_onlending,
-        )
+    banking_system_financing = stocks[:bank_share] * stocks[:domestic_debt_change]
+    nonbank_public_financing = stocks[:domestic_debt_change] - banking_system_financing
 
     domestic_net_onlending =
-        (1 - ODA_share) *
-        public_net_onlending_ratio *
-        IMF_GDP
+        (1 - assumptions.oda_financed_share_of_public_net_onlending) *
+        fis.net_onlending_ratio * IMF_GDP
 
-    delta_NDDG =
-        nonbank_public_financing -
-        domestic_net_onlending
+    delta_NDDG = nonbank_public_financing - domestic_net_onlending
 
-    NDDG_lag = stocks[:NDDG] - delta_NDDG
-
-    capital_gain =
-        (E - E_lag) * observed_lag[:R]
-
-    reserve_related_financial_flow =
-        (stocks[:NFA] - observed_lag[:NFA]) -
-        capital_gain
-
-    government_foreign_debt_change_ratio =
-        Float64(
-            assumptions.government_foreign_debt_change_share_of_imf_gdp,
-        )
-
-    preliminary_government_foreign_debt_change =
-        government_foreign_debt_change_ratio * IMF_GDP
-
-    government_foreign_financing_reconciliation =
-        Float64(
-            assumptions.government_foreign_financing_reconciliation,
-        )
+    capital_gain = (E - E_lag) * lag[:R]
+    reserve_related_financial_flow = (stocks[:NFA] - lag[:NFA]) - capital_gain
 
     delta_NFDG_vnd =
-        preliminary_government_foreign_debt_change -
-        government_foreign_financing_reconciliation
-
+        assumptions.government_foreign_debt_change_share_of_imf_gdp * IMF_GDP -
+        assumptions.government_foreign_financing_reconciliation
     delta_NFDG = delta_NFDG_vnd / E
-    NFDG_lag = stocks[:NFDG] - delta_NFDG
 
-    delta_R = stocks[:R] - observed_lag[:R]
+    delta_R = stocks[:R] - lag[:R]
+    delta_NFDP = delta_R - ext.CURBAL - delta_NFDG - ext.FDI
 
-    delta_NFDP =
-        delta_R -
-        CURBAL -
-        delta_NFDG -
-        FDI
-
-    NFDP_lag = stocks[:NFDP] - delta_NFDP
-
-    # --------------------------------------------------------------------------
-    # Real SAM
-    # --------------------------------------------------------------------------
-
-    real_accounts = [
-        :COM,
-        :PRV,
-        :STATE,
-        :GCAP,
-        :PCAP,
-        :DFIN,
-        :FFIN,
-        :ROW,
-    ]
-
-    real_indices = account_indices(real_accounts)
-
-    real = zeros(
-        length(real_accounts),
-        length(real_accounts),
+    return (;
+        GDP, E, E_lag,
+        CP = na.CP, CG = na.CG,
+        IV, IVG, IVP,
+        GT, TG, INDG,
+        X, M, exports_vnd, imports_vnd,
+        NTRG = ext.NTRG, NTRP = ext.NTRP, NFP,
+        INFG = int.INFG, INFP = int.INFP,
+        FDI = ext.FDI, CURBAL = ext.CURBAL,
+        government_saving, government_capital_balance,
+        private_saving, private_external_income,
+        investment_reconciliation,
+        capital_gain, reserve_related_financial_flow,
+        delta_DCG, delta_DCP, delta_MS,
+        delta_NDDG, delta_NFDG, delta_NFDG_vnd, delta_NFDP,
     )
+end
 
-    post!(real, real_indices, :COM, :PRV, CP)
-    post!(real, real_indices, :COM, :STATE, CG)
-    post!(real, real_indices, :COM, :GCAP, IVG)
-    post!(real, real_indices, :COM, :PCAP, IVP)
-    post!(real, real_indices, :COM, :ROW, exports_vnd)
+# ==============================================================================
+# Posting
+# ==============================================================================
 
-    post!(real, real_indices, :PRV, :COM, GDP)
-    post!(real, real_indices, :PRV, :STATE, GT)
-    post!(real, real_indices, :PRV, :DFIN, INDG)
-    post!(real, real_indices, :PRV, :ROW, private_external_income)
+function post_real_sam(f)
+    accounts = [:COM, :PRV, :STATE, :GCAP, :PCAP, :DFIN, :FFIN, :ROW]
+    i = account_indices(accounts)
+    S = zeros(length(accounts), length(accounts))
+    E = f.E
 
-    post!(real, real_indices, :STATE, :PRV, TG)
-    post!(real, real_indices, :STATE, :ROW, E * NTRG)
+    post!(S, i, :COM, :PRV, f.CP)
+    post!(S, i, :COM, :STATE, f.CG)
+    post!(S, i, :COM, :GCAP, f.IVG)
+    post!(S, i, :COM, :PCAP, f.IVP)
+    post!(S, i, :COM, :ROW, f.exports_vnd)
 
-    post!(real, real_indices, :GCAP, :STATE, government_saving)
+    post!(S, i, :PRV, :COM, f.GDP)
+    post!(S, i, :PRV, :STATE, f.GT)
+    post!(S, i, :PRV, :DFIN, f.INDG)
+    post!(S, i, :PRV, :ROW, f.private_external_income)
 
-    post!(real, real_indices, :PCAP, :PRV, private_saving)
-    post!(
-        real,
-        real_indices,
-        :PCAP,
-        :GCAP,
-        government_capital_balance,
-    )
-    post!(real, real_indices, :PCAP, :ROW, -E * CURBAL)
+    post!(S, i, :STATE, :PRV, f.TG)
+    post!(S, i, :STATE, :ROW, E * f.NTRG)
 
-    post!(real, real_indices, :DFIN, :STATE, INDG)
+    post!(S, i, :GCAP, :STATE, f.government_saving)
 
-    post!(real, real_indices, :FFIN, :PRV, E * INFP)
-    post!(real, real_indices, :FFIN, :STATE, E * INFG)
+    post!(S, i, :PCAP, :PRV, f.private_saving)
+    post!(S, i, :PCAP, :GCAP, f.government_capital_balance)
+    post!(S, i, :PCAP, :ROW, -E * f.CURBAL)
 
-    post!(real, real_indices, :ROW, :COM, imports_vnd)
-    post!(real, real_indices, :ROW, :FFIN, E * (INFG + INFP))
+    post!(S, i, :DFIN, :STATE, f.INDG)
 
-    real_adjustments = balance_sam!(
-        real,
-        real_accounts;
-        balancing_account = :PCAP,
-    )
+    post!(S, i, :FFIN, :PRV, E * f.INFP)
+    post!(S, i, :FFIN, :STATE, E * f.INFG)
 
-    # --------------------------------------------------------------------------
-    # Financial SAM
-    # --------------------------------------------------------------------------
+    post!(S, i, :ROW, :COM, f.imports_vnd)
+    post!(S, i, :ROW, :FFIN, E * (f.INFG + f.INFP))
 
-    financial_accounts = [
-        :DFIN,
-        :FFIN,
-        :FDI,
-        :GFIN,
-        :PFIN,
-        :CAPGAIN,
-        :GCAP,
-        :PCAP,
-    ]
+    adjustments = balance_sam!(S, accounts; balancing_account = :PCAP)
 
-    financial_indices = account_indices(financial_accounts)
+    return accounts, S, adjustments
+end
 
-    financial = zeros(
-        length(financial_accounts),
-        length(financial_accounts),
-    )
+function post_financial_sam(f)
+    accounts = [:DFIN, :FFIN, :FDI, :GFIN, :PFIN, :CAPGAIN, :GCAP, :PCAP]
+    i = account_indices(accounts)
+    S = zeros(length(accounts), length(accounts))
+    E = f.E
 
-    post!(financial, financial_indices, :DFIN, :PFIN, delta_MS)
+    post!(S, i, :DFIN, :PFIN, f.delta_MS)
 
-    post!(
-        financial,
-        financial_indices,
-        :FFIN,
-        :DFIN,
-        reserve_related_financial_flow,
-    )
+    post!(S, i, :FFIN, :DFIN, f.reserve_related_financial_flow)
+    post!(S, i, :FFIN, :PCAP, -E * f.CURBAL)
 
-    post!(financial, financial_indices, :FFIN, :PCAP, -E * CURBAL)
+    post!(S, i, :FDI, :FFIN, E * f.FDI)
 
-    post!(financial, financial_indices, :FDI, :FFIN, E * FDI)
+    post!(S, i, :GFIN, :DFIN, f.delta_DCG)
+    post!(S, i, :GFIN, :FFIN, f.delta_NFDG_vnd)
+    post!(S, i, :GFIN, :PFIN, f.delta_NDDG)
+    post!(S, i, :GFIN, :GCAP, f.government_saving)
 
-    post!(financial, financial_indices, :GFIN, :DFIN, delta_DCG)
-    post!(
-        financial,
-        financial_indices,
-        :GFIN,
-        :FFIN,
-        delta_NFDG_vnd,
-    )
-    post!(financial, financial_indices, :GFIN, :PFIN, delta_NDDG)
-    post!(
-        financial,
-        financial_indices,
-        :GFIN,
-        :GCAP,
-        government_saving,
-    )
+    post!(S, i, :PFIN, :DFIN, f.delta_DCP)
+    post!(S, i, :PFIN, :FFIN, E * f.delta_NFDP)
+    post!(S, i, :PFIN, :FDI, E * f.FDI)
+    post!(S, i, :PFIN, :CAPGAIN, f.capital_gain)
+    post!(S, i, :PFIN, :PCAP, f.private_saving)
 
-    post!(financial, financial_indices, :PFIN, :DFIN, delta_DCP)
-    post!(
-        financial,
-        financial_indices,
-        :PFIN,
-        :FFIN,
-        E * delta_NFDP,
-    )
-    post!(financial, financial_indices, :PFIN, :FDI, E * FDI)
-    post!(
-        financial,
-        financial_indices,
-        :PFIN,
-        :CAPGAIN,
-        capital_gain,
-    )
-    post!(
-        financial,
-        financial_indices,
-        :PFIN,
-        :PCAP,
-        private_saving,
-    )
+    post!(S, i, :CAPGAIN, :DFIN, f.capital_gain)
 
-    post!(
-        financial,
-        financial_indices,
-        :CAPGAIN,
-        :DFIN,
-        capital_gain,
-    )
+    post!(S, i, :GCAP, :GFIN, f.IVG)
+    post!(S, i, :GCAP, :PCAP, f.government_capital_balance)
 
-    post!(financial, financial_indices, :GCAP, :GFIN, IVG)
-    post!(
-        financial,
-        financial_indices,
-        :GCAP,
-        :PCAP,
-        government_capital_balance,
-    )
+    post!(S, i, :PCAP, :PFIN, f.IVP)
 
-    post!(financial, financial_indices, :PCAP, :PFIN, IVP)
+    adjustments = balance_sam!(S, accounts; balancing_account = :PFIN)
 
-    financial_adjustments = balance_sam!(
-        financial,
-        financial_accounts;
-        balancing_account = :PFIN,
-    )
+    return accounts, S, adjustments
+end
 
-    # --------------------------------------------------------------------------
-    # Output object
-    # --------------------------------------------------------------------------
+# ==============================================================================
+# Builder
+# ==============================================================================
+
+function build_sam(obs, assumptions; year::Int)
+    lag_year = year - 1
+
+    stocks = build_stock_state(obs, assumptions, year)
+    lag = build_stock_state(obs, assumptions, lag_year)
+
+    f = sam_flows(obs, assumptions, stocks, lag, year)
+
+    real_accounts, real, real_adjustments = post_real_sam(f)
+    financial_accounts, financial, financial_adjustments = post_financial_sam(f)
+
+    # Lagged debt stocks implied by the flow decomposition (these replace the
+    # observed lag values, which are on a different accounting basis).
+    lag[:NDDG] = stocks[:NDDG] - f.delta_NDDG
+    lag[:NFDG] = stocks[:NFDG] - f.delta_NFDG
+    lag[:NFDP] = stocks[:NFDP] - f.delta_NFDP
 
     flows = Dict{Symbol, Float64}(
-        :CP => CP,
-        :CG => CG,
-        :C => CP + CG,
+        :CP => f.CP, :CG => f.CG, :C => f.CP + f.CG,
+        :IV => f.IV, :IVG => f.IVG, :IVP => f.IVP,
+        :GT => f.GT, :TG => f.TG, :INDG => f.INDG,
+        :X => f.X, :M => f.M,
+        :NTRG => f.NTRG, :NTRP => f.NTRP, :NFP => f.NFP,
+        :INFG => f.INFG, :INFP => f.INFP, :FDI => f.FDI,
+        :CURBAL => f.CURBAL,
 
-        :IV => IV,
-        :IVG => IVG,
-        :IVP => IVP,
+        :government_saving => f.government_saving,
+        :government_capital_balance => f.government_capital_balance,
+        :private_saving => f.private_saving,
 
-        :GT => GT,
-        :TG => TG,
-        :INDG => INDG,
+        :investment_reconciliation => f.investment_reconciliation,
+        :capital_gain => f.capital_gain,
+        :reserve_related_financial_flow => f.reserve_related_financial_flow,
 
-        :X => X,
-        :M => M,
-
-        :NTRG => NTRG,
-        :NTRP => NTRP,
-        :NFP => NFP,
-        :INFG => INFG,
-        :INFP => INFP,
-        :FDI => FDI,
-
-        :CURBAL => CURBAL,
-
-        :government_saving => government_saving,
-        :government_capital_balance => government_capital_balance,
-        :private_saving => private_saving,
-
-        :investment_reconciliation => investment_reconciliation,
-
-        :capital_gain => capital_gain,
-        :reserve_related_financial_flow =>
-            reserve_related_financial_flow,
-
-        :delta_DCG => delta_DCG,
-        :delta_DCP => delta_DCP,
-        :delta_MS => delta_MS,
-
-        :delta_NDDG => delta_NDDG,
-        :delta_NFDG => delta_NFDG,
-        :delta_NFDP => delta_NFDP,
+        :delta_DCG => f.delta_DCG, :delta_DCP => f.delta_DCP, :delta_MS => f.delta_MS,
+        :delta_NDDG => f.delta_NDDG, :delta_NFDG => f.delta_NFDG, :delta_NFDP => f.delta_NFDP,
     )
-
-    lag = copy(observed_lag)
-
-    lag[:NDDG] = NDDG_lag
-    lag[:NFDG] = NFDG_lag
-    lag[:NFDP] = NFDP_lag
 
     balancing_entries = Dict{Symbol, Float64}()
 
     for (account, adjustment) in real_adjustments
-        balancing_entries[Symbol(:real_, account)] =
-            adjustment
+        balancing_entries[Symbol(:real_, account)] = adjustment
     end
 
     for (account, adjustment) in financial_adjustments
-        balancing_entries[Symbol(:financial_, account)] =
-            adjustment
+        balancing_entries[Symbol(:financial_, account)] = adjustment
     end
 
     return SAM(
-        year,
-        lag_year,
-
-        real_accounts,
-        real,
-
-        financial_accounts,
-        financial,
-
-        flows,
-        stocks,
-        lag,
-
+        year, lag_year,
+        real_accounts, real,
+        financial_accounts, financial,
+        flows, stocks, lag,
         balancing_entries,
     )
 end

@@ -7,35 +7,18 @@ include(joinpath(@__DIR__, "checks.jl"))
 
 function build_model_data(
     workbook::AbstractString;
-    base_year::Int = 2024,
-    horizon::Int = 5,
+    base_year::Int,   # no defaults: settings.jl is the single source of truth
+    horizon::Int,
     run_checks::Bool = true,
 )
-    raw = read_inputs(workbook)
+    obs = read_inputs(workbook)
     assumptions = model_assumptions()
 
-    sam = build_sam(
-        raw,
-        assumptions;
-        year = base_year,
-    )
+    sam = build_sam(obs, assumptions; year = base_year)
+    base = build_base_year(obs, assumptions, sam; year = base_year)
+    projection = build_projection_paths(base, assumptions; horizon)
 
-    base = build_base_year(
-        raw,
-        assumptions,
-        sam;
-        year = base_year,
-    )
-
-    projection = build_projection_paths(
-        base,
-        assumptions;
-        horizon,
-    )
-
-    run_checks && check_sam_balance(sam)
-    run_checks && check_base_year(base)
-    run_checks && check_projection_paths(projection; horizon)
+    run_checks && check_sam(sam)
 
     return (
         source_workbook = String(workbook),

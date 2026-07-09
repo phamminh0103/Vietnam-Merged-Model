@@ -1,7 +1,3 @@
-# ==============================================================================
-# Scenario assumptions
-# ==============================================================================
-
 function model_assumptions()
     return (
         # Annual real growth
@@ -27,7 +23,7 @@ function model_assumptions()
         private_transfers_growth = 0.0,
         foreign_direct_investment_growth = 0.050,
 
-        # Interest-rate adjustments
+        # Interest-rate adjustments (added to base-year calibrated rates)
         government_domestic_rate_adjustment = 0.0,
         government_foreign_rate_adjustment = 0.0,
         private_foreign_rate_adjustment = 0.0,
@@ -49,6 +45,7 @@ function model_assumptions()
             2022 => 0.705,
             2023 => 0.710,
             2024 => 0.715,
+            2025 => 0.720,
         ),
 
         oda_financed_share_of_public_net_onlending = 0.0,

@@ -1,412 +1,180 @@
-# ==============================================================================
-# Base-year reconstruction
-# ==============================================================================
-
 struct BaseYearState
     year::Int
     lag_year::Int
 
     values::Dict{Any, Float64}
-    lag::Dict{Any, Float64}
+    lag::Dict{Symbol, Float64}
     calibrated::Dict{Symbol, Float64}
 
     sam::SAM
 end
 
 # ==============================================================================
-# Prices and historical model levels
+# Prices and levels
 # ==============================================================================
 
-function model_price_indices(
-    raw::RawInputs,
-    assumptions,
-    year::Int,
-    base_year::Int,
-)
-    nominal = observed_value(
-        raw,
-        "GSO national accounts — nominal expenditure",
-        "Nominal GDP",
-        year,
-    )
+function model_price_indices(obs, assumptions, year, base_year)
+    deflator(y) =
+        read_group(obs, NATIONAL_ACCOUNTS, y).GDPN /
+        read_group(obs, REAL_ACCOUNTS, y).GDP_real
 
-    real = observed_value(
-        raw,
-        "GSO national accounts — real expenditure",
-        "Real GDP",
-        year,
-    )
-
-    base_nominal = observed_value(
-        raw,
-        "GSO national accounts — nominal expenditure",
-        "Nominal GDP",
-        base_year,
-    )
-
-    base_real = observed_value(
-        raw,
-        "GSO national accounts — real expenditure",
-        "Real GDP",
-        base_year,
-    )
-
-    base_PD = Float64(
-        assumptions.base_year_domestic_price_index,
-    )
-
-    base_MPI = Float64(
-        assumptions.base_year_import_price_index,
-    )
-
-    base_XPI = Float64(
-        assumptions.base_year_export_price_index,
-    )
-
-    relative_price =
-        (nominal / real) /
-        (base_nominal / base_real)
+    relative_price = deflator(year) / deflator(base_year)
 
     return (
-        PD = base_PD * relative_price,
-        MPI = base_MPI * relative_price,
-        XPI = base_XPI * relative_price,
+        PD = assumptions.base_year_domestic_price_index * relative_price,
+        MPI = assumptions.base_year_import_price_index * relative_price,
+        XPI = assumptions.base_year_export_price_index * relative_price,
     )
 end
 
-function model_level_state(
-    raw::RawInputs,
-    assumptions,
-    year::Int,
-    base_year::Int,
-)
-    prices = model_price_indices(
-        raw,
-        assumptions,
-        year,
-        base_year,
-    )
+function model_level_state(obs, assumptions, year, base_year)
+    prices = model_price_indices(obs, assumptions, year, base_year)
+    stocks = build_stock_state(obs, assumptions, year)
+    trade = aggregate_external_trade(obs, year)
 
-    stocks = build_stock_state(
-        raw,
-        assumptions,
-        year,
-    )
-
-    trade = aggregate_external_trade(raw, year)
-
-    GDP = stocks[:GDPN] / prices.PD
-
-    return Dict{Symbol, Float64}(
+    state = Dict{Symbol, Float64}(
         :E => stocks[:E],
 
         :PD => prices.PD,
         :MPI => prices.MPI,
         :XPI => prices.XPI,
 
-        :GDP => GDP,
+        :GDP => stocks[:GDPN] / prices.PD,
         :GDPN => stocks[:GDPN],
 
-        :X => 1_000 * trade.exports_bn_usd / prices.XPI,
-        :M => 1_000 * trade.imports_bn_usd / prices.MPI,
-
-        :DCP => stocks[:DCP],
-        :DCG => stocks[:DCG],
-        :DC => stocks[:DC],
-
-        :MD => stocks[:MD],
-        :MS => stocks[:MS],
-        :R => stocks[:R],
-
-        :NDDG => stocks[:NDDG],
-        :NFDG => stocks[:NFDG],
-        :NFDP => stocks[:NFDP],
+        :X => trade.exports / prices.XPI,
+        :M => trade.imports / prices.MPI,
     )
+
+    for name in (:DCP, :DCG, :DC, :MD, :MS, :R, :NDDG, :NFDG, :NFDP)
+        state[name] = stocks[name]
+    end
+
+    return state
 end
 
-function sectoral_GDP_shares(
-    raw::RawInputs,
-    year::Int,
-)
-    group = "GSO national accounts — real sector GDP"
-
-    sector_values = Dict(
-        :agriculture => observed_value(
-            raw,
-            group,
-            "Agriculture GDP",
-            year,
-        ),
-        :industry => observed_value(
-            raw,
-            group,
-            "Industry GDP",
-            year,
-        ),
-        :services => observed_value(
-            raw,
-            group,
-            "Services GDP",
-            year,
-        ),
-    )
-
-    total = sum(Base.values(sector_values))
-
-    return Dict(
-        sector => sector_values[sector] / total
-        for sector in SAM_SECTORS
-    )
+"Normalise sectoral values to shares of their own total."
+function sector_shares(values)
+    total = sum(values[sector] for sector in SAM_SECTORS)
+    return Dict(sector => values[sector] / total for sector in SAM_SECTORS)
 end
 
-function sectoral_export_shares(
-    raw::RawInputs,
-    year::Int,
-)
-    sector_values = observed_sector_exports(raw, year)
+# ==============================================================================
+# Calibration
+# ==============================================================================
 
-    total = sum(Base.values(sector_values))
+function calibrate_parameters(v, lag, flows, assumptions)
+    k1 = assumptions.investment_growth_coefficient
+    m1 = assumptions.import_gdp_elasticity
+    m2 = assumptions.import_real_exchange_rate_elasticity
 
-    return Dict(
-        sector => sector_values[sector] / total
-        for sector in SAM_SECTORS
+    # Private saving rate
+    b_calibrated = flows[:private_saving] / (v[:CP] + flows[:private_saving])
+    b_base = b_calibrated + assumptions.base_year_private_saving_adjustment
+
+    # Reserve response to import changes
+    d =
+        (flows[:reserve_related_financial_flow] / v[:E]) /
+        (v[:MPI] * v[:M] - lag[:MPI] * lag[:M])
+
+    # Government foreign borrowing relative to exports
+    g = v[:NFDG] / (v[:XPI] * v[:X])
+
+    # Investment function intercept (slope k1 assumed)
+    k0 = (v[:IV] - k1 * (v[:GDP] - lag[:GDP])) / lag[:GDP]
+
+    # Import demand intercept (elasticities m1, m2 assumed)
+    m0 = log(v[:M]) - m1 * log(v[:GDP]) - m2 * log(v[:E] * v[:MPI] / v[:PD])
+
+    # Money velocity
+    velocity = v[:GDPN] / v[:MS]
+
+    # Implicit interest rates on lagged debt stocks
+    irdg = v[:INDG] / lag[:NDDG]
+    irfg = v[:INFG] / lag[:NFDG]
+    irfp = v[:INFP] / lag[:NFDP]
+
+    return Dict{Symbol, Float64}(
+        :b_calibrated => b_calibrated, :b_base => b_base,
+        :d => d, :g => g,
+        :k0 => k0, :k1 => k1,
+        :m0 => m0, :m1 => m1, :m2 => m2,
+        :v => velocity,
+        :irdg => irdg, :irfg => irfg, :irfp => irfp,
     )
 end
 
 # ==============================================================================
-# Main base-year builder
+# Builder
 # ==============================================================================
 
-function build_base_year(
-    raw::RawInputs,
-    assumptions,
-    sam::SAM;
-    year::Int,
-)
-    year == sam.year || error(
-        "SAM year $(sam.year) does not match requested base year $year.",
-    )
-
+function build_base_year(obs, assumptions, sam::SAM; year::Int)
     lag_year = year - 1
 
-    current = model_level_state(
-        raw,
-        assumptions,
-        year,
-        year,
-    )
+    current = model_level_state(obs, assumptions, year, year)
+    lag = model_level_state(obs, assumptions, lag_year, year)
 
-    lag = model_level_state(
-        raw,
-        assumptions,
-        lag_year,
-        year,
-    )
-
+    # Lagged financial stocks come from the SAM's flow decomposition.
     for name in (:NDDG, :NFDG, :NFDP)
         lag[name] = sam.lag[name]
     end
 
     flows = sam.flows
-    values = Dict{Any, Float64}()
 
-    for name in (
-        :E,
-        :PD,
-        :MPI,
-        :XPI,
-        :GDP,
-        :GDPN,
-        :X,
-        :M,
-        :DCP,
-        :DCG,
-        :DC,
-        :MD,
-        :MS,
-        :R,
-        :NDDG,
-        :NFDG,
-        :NFDP,
-    )
-        values[name] = current[name]
+    # Levels and prices ----------------------------------------------------------
+
+    v = Dict{Any, Float64}(pairs(current)...)
+
+    v[:P] = v[:GDPN] / v[:GDP]
+
+    # Flows taken from the SAM ---------------------------------------------------
+
+    for name in (:GT, :TG, :IVG, :NTRG, :NTRP, :FDI, :NFP, :INFG, :INFP, :INDG,
+                 :CP, :CG, :IV, :IVP)
+        v[name] = flows[name]
     end
 
-    values[:P] = values[:GDPN] / values[:GDP]
+    v[:C] = v[:CP] + v[:CG]
 
-    for name in (
-        :GT,
-        :TG,
-        :IVG,
-        :NTRG,
-        :NTRP,
-        :FDI,
-        :NFP,
-        :INFG,
-        :INFP,
-        :INDG,
-    )
-        values[name] = flows[name]
-    end
+    # Sectoral splits ------------------------------------------------------------
 
-    GDP_shares = sectoral_GDP_shares(raw, year)
-    export_shares = sectoral_export_shares(raw, year)
+    GDP_shares = sector_shares(read_group(obs, SECTOR_GDP, year))
+    export_shares = sector_shares(observed_sector_exports(obs, year))
 
     for sector in SAM_SECTORS
-        values[(:GDPS, sector)] =
-            GDP_shares[sector] * values[:GDP]
-
-        values[(:XS, sector)] =
-            export_shares[sector] * values[:X]
+        v[(:GDPS, sector)] = GDP_shares[sector] * v[:GDP]
+        v[(:XS, sector)] = export_shares[sector] * v[:X]
     end
 
-    values[:CP] = flows[:CP]
-    values[:CG] = flows[:CG]
-    values[:C] = values[:CP] + values[:CG]
+    # Accounting identities --------------------------------------------------------
 
-    values[:IV] = flows[:IV]
-    values[:IVP] = flows[:IVP]
+    v[:RESBAL] = v[:XPI] * v[:X] - v[:MPI] * v[:M]
 
-    values[:RESBAL] =
-        values[:XPI] * values[:X] -
-        values[:MPI] * values[:M]
+    v[:NETFSY] = v[:NFP] - v[:INFG] - v[:INFP]
 
-    values[:NETFSY] =
-        values[:NFP] -
-        values[:INFG] -
-        values[:INFP]
+    v[:CURBAL] = v[:RESBAL] + v[:NETFSY] + v[:NTRG] + v[:NTRP]
 
-    values[:CURBAL] =
-        values[:RESBAL] +
-        values[:NETFSY] +
-        values[:NTRG] +
-        values[:NTRP]
+    v[:GDY] =
+        v[:P] * v[:GDP] +
+        v[:E] * v[:NFP] +
+        v[:E] * v[:NTRP] +
+        v[:INDG] +
+        (v[:GT] - v[:TG]) -
+        v[:E] * v[:INFP]
 
-    values[:GDY] =
-        values[:P] * values[:GDP] +
-        values[:E] * values[:NFP] +
-        values[:E] * values[:NTRP] +
-        values[:INDG] +
-        (values[:GT] - values[:TG]) -
-        values[:E] * values[:INFP]
+    v[:GDS] =
+        v[:P] * v[:GDP] +
+        v[:E] * (v[:NFP] - v[:INFG] - v[:INFP]) +
+        v[:E] * (v[:NTRP] + v[:NTRG]) -
+        v[:PD] * v[:C]
 
-    values[:GDS] =
-        values[:P] * values[:GDP] +
-        values[:E] * (
-            values[:NFP] -
-            values[:INFG] -
-            values[:INFP]
-        ) +
-        values[:E] * (
-            values[:NTRP] +
-            values[:NTRG]
-        ) -
-        values[:PD] * values[:C]
+    v[:BRG] =
+        v[:PD] * (v[:CG] + v[:IVG]) +
+        (v[:GT] - v[:TG]) +
+        v[:INDG] +
+        v[:E] * (v[:INFG] - v[:NTRG])
 
-    values[:BRG] =
-        values[:PD] * (
-            values[:CG] +
-            values[:IVG]
-        ) +
-        (values[:GT] - values[:TG]) +
-        values[:INDG] +
-        values[:E] * (
-            values[:INFG] -
-            values[:NTRG]
-        )
+    calibrated = calibrate_parameters(v, lag, flows, assumptions)
 
-    # ==========================================================================
-    # Parameter calibration
-    # ==========================================================================
-
-    k1 = Float64(assumptions.investment_growth_coefficient)
-    m1 = Float64(assumptions.import_gdp_elasticity)
-    m2 = Float64(
-        assumptions.import_real_exchange_rate_elasticity,
-    )
-
-    saving_adjustment = Float64(
-        assumptions.base_year_private_saving_adjustment,
-    )
-
-    b_calibrated =
-        flows[:private_saving] /
-        (
-            values[:CP] +
-            flows[:private_saving]
-        )
-
-    b_base = b_calibrated + saving_adjustment
-
-    d =
-        (
-            flows[:reserve_related_financial_flow] /
-            values[:E]
-        ) /
-        (
-            values[:MPI] * values[:M] -
-            lag[:MPI] * lag[:M]
-        )
-
-    g =
-        values[:NFDG] /
-        (
-            values[:XPI] *
-            values[:X]
-        )
-
-    k0 =
-        (
-            values[:IV] -
-            k1 * (
-                values[:GDP] -
-                lag[:GDP]
-            )
-        ) /
-        lag[:GDP]
-
-    m0 =
-        log(values[:M]) -
-        m1 * log(values[:GDP]) -
-        m2 * log(
-            values[:E] *
-            values[:MPI] /
-            values[:PD],
-        )
-
-    v = values[:GDPN] / values[:MS]
-
-    irdg = values[:INDG] / lag[:NDDG]
-    irfg = values[:INFG] / lag[:NFDG]
-    irfp = values[:INFP] / lag[:NFDP]
-
-    calibrated = Dict{Symbol, Float64}(
-        :b_calibrated => b_calibrated,
-        :b_base => b_base,
-
-        :d => d,
-        :g => g,
-
-        :k0 => k0,
-        :k1 => k1,
-
-        :m0 => m0,
-        :m1 => m1,
-        :m2 => m2,
-
-        :v => v,
-
-        :irdg => irdg,
-        :irfg => irfg,
-        :irfp => irfp,
-    )
-
-    return BaseYearState(
-        year,
-        lag_year,
-        values,
-        lag,
-        calibrated,
-        sam,
-    )
+    return BaseYearState(year, lag_year, v, lag, calibrated, sam)
 end
