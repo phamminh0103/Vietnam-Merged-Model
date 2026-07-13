@@ -1,3 +1,4 @@
+include(joinpath(@__DIR__, "..", "sets.jl"))
 include(joinpath(@__DIR__, "reader.jl"))
 include(joinpath(@__DIR__, "assumptions.jl"))
 include(joinpath(@__DIR__, "sam.jl"))

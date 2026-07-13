@@ -1,13 +1,17 @@
 function model_assumptions()
     return (
         # Annual real growth
-        agriculture_gdp_growth = 0.081,
-        industry_gdp_growth = 0.100,
-        services_gdp_growth = 0.102,
+        gdp_growth = Dict(
+            :agriculture => 0.081,
+            :industry => 0.100,
+            :services => 0.102,
+        ),
 
-        agriculture_export_growth = 0.074,
-        industry_export_growth = 0.089,
-        services_export_growth = 0.107,
+        export_growth = Dict(
+            :agriculture => 0.074,
+            :industry => 0.089,
+            :services => 0.107,
+        ),
 
         # Prices and exchange rate
         exchange_rate_growth = 0.010,

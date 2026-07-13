@@ -1,30 +1,60 @@
 # ==============================================================================
 # Projection paths
-#
-# Exogenous levels grow at compound rates from their base-year values;
-# parameters are held constant (plus any rate adjustment) over the horizon.
 # ==============================================================================
 
-constant_path(x, horizon) = fill(Float64(x), horizon)
+path(x::Number, years) =
+    fill(Float64(x), length(years))
 
-compound_path(x0, growth, horizon) = x0 .* (1 + growth) .^ (1:horizon)
+path(x::AbstractVector, years) =
+    Float64.(x)
 
-function build_projection_paths(base::BaseYearState, assumptions; horizon::Int)
-    E_growth = assumptions.exchange_rate_growth
-    PD_growth = assumptions.domestic_price_growth
+path(x::AbstractDict, years) =
+    Float64[
+        haskey(x, year) ? x[year] : x[:default]
+        for year in years
+    ]
 
-    # Foreign prices keep the real exchange rate constant.
-    foreign_price_growth = (1 + PD_growth) / (1 + E_growth) - 1
+compound_path(x0, growth, years) =
+    Float64(x0) .* accumulate(*, 1 .+ path(growth, years))
 
-    # Sectoral growth rates: (:gamma, sector) for GDP, (:xgr, sector) for exports.
-
-    growth = Dict(
-        (name, sector) => constant_path(assumptions[Symbol(sector, suffix)], horizon)
-        for (name, suffix) in pairs((gamma = :_gdp_growth, xgr = :_export_growth))
-        for sector in SAM_SECTORS
+indexed_paths(name, values, years) =
+    Dict(
+        (name, index) => path(value, years)
+        for (index, value) in values
     )
 
-    # Exogenous levels: base-year value => growth rate.
+function build_projection_paths(
+    base::BaseYearState,
+    assumptions;
+    horizon::Int,
+)
+    years = collect(
+        (base.year + 1):(base.year + horizon),
+    )
+
+    p(x) = path(x, years)
+
+    E_growth = p(assumptions.exchange_rate_growth)
+    PD_growth = p(assumptions.domestic_price_growth)
+
+    # Foreign prices keep the real exchange rate constant.
+    foreign_price_growth =
+        (1 .+ PD_growth) ./
+        (1 .+ E_growth) .-
+        1
+
+    growth = merge(
+        indexed_paths(
+            :gamma,
+            assumptions.gdp_growth,
+            years,
+        ),
+        indexed_paths(
+            :xgr,
+            assumptions.export_growth,
+            years,
+        ),
+    )
 
     growth_rates = (
         E = E_growth,
@@ -44,32 +74,39 @@ function build_projection_paths(base::BaseYearState, assumptions; horizon::Int)
     )
 
     paths = Dict(
-        name => compound_path(base.values[name], rate, horizon)
-        for (name, rate) in pairs(growth_rates)
+        name => compound_path(
+            base.values[name],
+            growth,
+            years,
+        )
+        for (name, growth) in pairs(growth_rates)
     )
-
-    # Behavioural parameters, constant over the horizon.
 
     c = base.calibrated
 
     parameters = Dict(
-        :b => constant_path(c[:b_calibrated], horizon),
-        :d => constant_path(assumptions.reserve_change_import_change_response, horizon),
-        :g => constant_path(c[:g], horizon),
-        :k0 => constant_path(c[:k0], horizon),
-        :m0 => constant_path(c[:m0], horizon),
-        :v => constant_path(c[:v], horizon),
+        :b => p(c[:b_calibrated]),
+        :d => p(assumptions.reserve_change_import_change_response),
+        :g => p(c[:g]),
+        :k0 => p(c[:k0]),
+        :m0 => p(c[:m0]),
+        :v => p(c[:v]),
 
-        :k1 => constant_path(assumptions.investment_growth_coefficient, horizon),
-        :m1 => constant_path(assumptions.import_gdp_elasticity, horizon),
-        :m2 => constant_path(assumptions.import_real_exchange_rate_elasticity, horizon),
+        :k1 => p(assumptions.investment_growth_coefficient),
+        :m1 => p(assumptions.import_gdp_elasticity),
+        :m2 => p(assumptions.import_real_exchange_rate_elasticity),
 
-        :irdg => constant_path(
-            c[:irdg] + assumptions.government_domestic_rate_adjustment, horizon),
-        :irfg => constant_path(
-            c[:irfg] + assumptions.government_foreign_rate_adjustment, horizon),
-        :irfp => constant_path(
-            c[:irfp] + assumptions.private_foreign_rate_adjustment, horizon),
+        :irdg =>
+            c[:irdg] .+
+            p(assumptions.government_domestic_rate_adjustment),
+
+        :irfg =>
+            c[:irfg] .+
+            p(assumptions.government_foreign_rate_adjustment),
+
+        :irfp =>
+            c[:irfp] .+
+            p(assumptions.private_foreign_rate_adjustment),
     )
 
     return (; growth, paths, parameters)

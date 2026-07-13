@@ -2,7 +2,9 @@
 # Variable declarations
 # ==============================================================================
 
-function declare_variables!(db, sectors, years, proj)
+function declare_variables!(db, sets, years, proj)
+    sectors = sets.sectors
+
     JuMP.@variables db.model begin
         # ----------------------------------------------------------------------
         # Endogenous flow variables
@@ -201,11 +203,6 @@ const OUTPUT_KEYS = Any[
     :DCP,
     :NFDP,
 
-    (:GDPS, :agriculture),
-    (:GDPS, :industry),
-    (:GDPS, :services),
-
-    (:XS, :agriculture),
-    (:XS, :industry),
-    (:XS, :services),
+    [(:GDPS, sector) for sector in MODEL_SETS.sectors]...,
+    [(:XS, sector) for sector in MODEL_SETS.sectors]...,
 ]

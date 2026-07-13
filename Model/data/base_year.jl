@@ -54,9 +54,9 @@ function model_level_state(obs, assumptions, year, base_year)
 end
 
 "Normalise sectoral values to shares of their own total."
-function sector_shares(values)
-    total = sum(values[sector] for sector in SAM_SECTORS)
-    return Dict(sector => values[sector] / total for sector in SAM_SECTORS)
+function sector_shares(values, sectors)
+    total = sum(values[sector] for sector in sectors)
+    return Dict(sector => values[sector] / total for sector in sectors)
 end
 
 # ==============================================================================
@@ -138,10 +138,19 @@ function build_base_year(obs, assumptions, sam::SAM; year::Int)
 
     # Sectoral splits ------------------------------------------------------------
 
-    GDP_shares = sector_shares(read_group(obs, SECTOR_GDP, year))
-    export_shares = sector_shares(observed_sector_exports(obs, year))
+    sectors = MODEL_SETS.sectors
 
-    for sector in SAM_SECTORS
+    GDP_shares = sector_shares(
+        read_group(obs, SECTOR_GDP, year),
+        sectors,
+    )
+
+    export_shares = sector_shares(
+        observed_sector_exports(obs, year),
+        sectors,
+    )
+
+    for sector in sectors
         v[(:GDPS, sector)] = GDP_shares[sector] * v[:GDP]
         v[(:XS, sector)] = export_shares[sector] * v[:X]
     end

@@ -5,59 +5,42 @@ using JuMP: Model, set_silent
 using Ipopt
 using SquareModels
 
-const SECTORS = [:agriculture, :industry, :services]
-
+include(joinpath(@__DIR__, "..", "sets.jl"))
 include(joinpath(@__DIR__, "Variables.jl"))
 
-function set_path!(db, variable, values, years)
-    for (year, value) in zip(years, values)
-        db[variable[year]] = value
-    end
-end
+model_ref(vars, name::Symbol, year) =
+    getproperty(vars, name)[year]
 
-function set_data!(db, v, data)
-    t0 = data.base_year
-    t = data.projection_years
+model_ref(vars, key::Tuple, year) =
+    getproperty(vars, first(key))[Base.tail(key)..., year]
 
-    for (name, value) in data.initial
-        name isa Symbol || continue
-        db[getproperty(v, name)[t0]] = value
+function set_data!(db, vars, data)
+    for (key, value) in data.initial
+        db[model_ref(vars, key, data.base_year)] = value
     end
 
-    for sector in SECTORS
-        db[v.GDPS[sector, t0]] = data.initial[(:GDPS, sector)]
-        db[v.XS[sector, t0]] = data.initial[(:XS, sector)]
-
-        for (year, value) in zip(
-            t,
-            data.growth[(:gamma, sector)],
-        )
-            db[v.gamma[sector, year]] = value
+    for inputs in (
+        data.paths,
+        data.growth,
+        data.parameters,
+    )
+        for (key, values) in inputs
+            for (year, value) in zip(
+                data.projection_years,
+                values,
+            )
+                db[model_ref(vars, key, year)] = value
+            end
         end
-
-        for (year, value) in zip(
-            t,
-            data.growth[(:xgr, sector)],
-        )
-            db[v.xgr[sector, year]] = value
-        end
-    end
-
-    for (name, values) in data.paths
-        set_path!(db, getproperty(v, name), values, t)
-    end
-
-    for (name, values) in data.parameters
-        set_path!(db, getproperty(v, name), values, t)
     end
 
     return db
 end
 
-include(joinpath(@__DIR__, "modules", "GoodsMarketAndPrivateSector.jl"))
-include(joinpath(@__DIR__, "modules", "GovernmentBudget.jl"))
-include(joinpath(@__DIR__, "modules", "MoneyMarket.jl"))
-include(joinpath(@__DIR__, "modules", "BalanceOfPayments.jl"))
+include(joinpath(@__DIR__, "modules", "GoodsMarketAndPrivateSector.jl",))
+include(joinpath(@__DIR__, "modules", "GovernmentBudget.jl",))
+include(joinpath(@__DIR__, "modules", "MoneyMarket.jl",))
+include(joinpath(@__DIR__, "modules", "BalanceOfPayments.jl",))
 
 function build_square_model(
     base_year::Int,
@@ -71,7 +54,7 @@ function build_square_model(
 
     vars = declare_variables!(
         db,
-        SECTORS,
+        MODEL_SETS,
         years,
         projection_periods,
     )
@@ -80,7 +63,7 @@ function build_square_model(
         GoodsMarketAndPrivateSector.define_equations(
             db,
             vars;
-            sectors = SECTORS,
+            sectors = MODEL_SETS.sectors,
             proj = projection_periods,
             base_period = base_year,
         )
@@ -131,12 +114,9 @@ function extract_outputs(
     outputs = Dict{Any, Dict{Int, Float64}}()
 
     for key in OUTPUT_KEYS
-        name = key isa Tuple ? key[1] : key
-        indices = key isa Tuple ? key[2:end] : ()
-
         outputs[key] = Dict(
             year => Float64(
-                solution[getproperty(vars, name)[indices..., year]],
+                solution[model_ref(vars, key, year)],
             )
             for year in projection_periods
         )

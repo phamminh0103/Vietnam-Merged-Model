@@ -1,5 +1,3 @@
-const SAM_SECTORS = (:agriculture, :industry, :services)
-
 struct SAM
     year::Int
     lag_year::Int
